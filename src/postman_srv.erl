@@ -3,6 +3,7 @@
 
 %% API.
 -export([start_link/0]).
+-export([calculate/2]).
 
 %% gen_server.
 -export([init/1]).
@@ -40,3 +41,6 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+calculate(Tau, H) when is_float(Tau) andalso is_float(H) ->
+	gen_server:cast(?MODULE, {calculate, Tau, H}).
