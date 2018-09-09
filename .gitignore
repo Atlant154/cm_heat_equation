@@ -14,3 +14,5 @@ rel/example_project
 *.d
 
 log/
+
+\.vscode/
