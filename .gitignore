@@ -16,3 +16,7 @@ rel/example_project
 log/
 
 \.vscode/
+
+priv/result\.txt
+
+priv/test\.py

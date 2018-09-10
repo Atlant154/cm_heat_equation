@@ -1,51 +1,16 @@
 -module(cm_functions).
--export([tridiagonal_matrix_algorythm/4]).
--export([get_calculation_list/1]).
--export([get_free_part/3]).
 -export([function_of_heat_sources/2]).
--export([test/1]).
+-export([exact_solution/2]).
+-export([get_tridiagonal_matrix/2]).
+-export([get_free_part/3]).
+-export([get_result_scatter/7]).
+-export([write_file/4]).
 
 -define(THERMAL_DIFFUSIVITY, 0.0021).
--define(TIME_LEFT_BOUND, 0).
--define(TIME_RIGHT_BOUND, 1).
--define(X_LEFT_BOUND, 0).
--define(X_RIGHT_BOUND, 1).
-
-%% Tridiagonal matrix algorythm.
-
-%% API:
--spec tridiagonal_matrix_algorythm(list(), list(), list(), list()) -> list().
-tridiagonal_matrix_algorythm(Below, Main, Above, Free) ->
-    {P, [QCurrent | QTail]} = get_tdma_coef(Below, Main, Above, Free),
-    get_tdma_result(P, QTail, [QCurrent]).
-
-%% TDMA coefficient(forward sweep):
--spec get_tdma_coef(list(), list(), list(), list()) -> {list(), list()}.
-get_tdma_coef(Below, [MH | Main], [AH | Above], [FH | Free]) ->
-    get_tdma_coef([(-1) * (AH / MH)], [FH / MH], Below, Main, Above, Free).
-
-get_tdma_coef([PCurrent | _PTail] = P, [QCurrent | _QTail] = Q, [Below], [Main], [], [Free]) ->
-    {P, [(Free - Below * QCurrent) / (Main + Below * PCurrent) | Q]};
-get_tdma_coef([PCurrent | _PTail] = P, 
-              [QCurrent | _QTail] = Q, 
-              [BCurrent | BTail],
-              [MCurrent | MTail],
-              [ACurrent | ATail],
-              [FCurrent | FTail]) ->
-    get_tdma_coef([(-1) * (ACurrent / (MCurrent + BCurrent * PCurrent)) | P],
-                  [(FCurrent - BCurrent * QCurrent) / (MCurrent + BCurrent * PCurrent) | Q],
-                  BTail,
-                  MTail,
-                  ATail,
-                  FTail).
-
-%% Solution(coefficient substitution):
--spec get_tdma_result(list(), list(), list()) -> list().
-get_tdma_result([], _Q, Results) ->
-    Results;
-get_tdma_result([P | PTail], [Q | QTail], [X | _XTail] = Results) ->
-    X_i = P * X + Q,
-    get_tdma_result(PTail, QTail, [X_i | Results]).
+-define(TIME_LEFT_BOUND, 0.0).
+-define(TIME_RIGHT_BOUND, 1.0).
+-define(X_LEFT_BOUND, 0.0).
+-define(X_RIGHT_BOUND, 1.0).
 
 %% Heat equation.
 
@@ -65,35 +30,40 @@ get_free_part(?TIME_LEFT_BOUND, H, _PreviousTimeLayerFree) ->
 get_free_part(_Else, _H, PreviousTimeLayerFree) ->
     PreviousTimeLayerFree.
 
+-spec get_init_free_part(float()) -> list().
 get_init_free_part(H) ->
     get_init_free_part(?X_LEFT_BOUND, ?X_RIGHT_BOUND, H, []).
 
-get_init_free_part(Iter, End, _H, Result) when Iter > End->
+-spec get_init_free_part(float(), float(), float(), list()) -> list().
+get_init_free_part(Iter, End, H, Result) when Iter > End + H/2 ->
     Result;
 get_init_free_part(Iter, End, H, Result) ->
+    % io:format("Iter: ~p. End: ~p. Iter + H = ~p.~n", [Iter, End, Iter + H]),
     get_init_free_part(Iter + H, End, H, [exact_solution(Iter, 0) | Result]).
 
--spec get_calculation_list(float()) -> list().
-get_calculation_list(Tau) ->
-    get_calculation_list(0.0, 1, [], Tau).
+-spec get_tridiagonal_matrix(float(), float()) -> {list(), list(), list()}.
+get_tridiagonal_matrix(Tau, H) ->
+    A_i = (?THERMAL_DIFFUSIVITY * Tau) / math:pow(H, 2),
+    AC = [A_i || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H) - 1)],
+    B = [(-1) * (A_i + 2) || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H))],
+    {AC, B, AC}.
 
-get_calculation_list(LeftBound, 1, CalcList, _Tau) when LeftBound > 1 ->
-    CalcList;
-get_calculation_list(LeftBound, 1, CalcList, Tau) ->
-    get_calculation_list(LeftBound + Tau, 1, lists:append([CalcList, [LeftBound]]), Tau).
+get_result_scatter(A, B, C, CalcPids, CalcRef, Tau, H) ->
+    get_result_scatter(?TIME_LEFT_BOUND, ?TIME_RIGHT_BOUND, A, B, C, CalcPids, CalcRef, [], [], Tau, H).
 
-%% Tests.
+get_result_scatter(TimeLeftBound,
+                   TimeRightBound,
+                   _A, _B, _C, _CalcPids, _CalcRef, _PreviousLayer,
+                   Result, _Tau, _H) when TimeLeftBound > TimeRightBound ->
+                       Result;
+get_result_scatter(Left, Right, A, B, C, Pids, Ref, PrevLayer, Result, Tau, H) ->
+    Free = get_free_part(Left, H, PrevLayer),
+    % io:format("Free: ~p~n", [Free]),
+    LocalResult = cm_tdma_functions:tridiagonal_matrix_algorythm(A, B, C, Free),
+    get_result_scatter(Left + Tau, Right, A, B, C, Pids, Ref, LocalResult, [LocalResult | Result], Tau, H).
 
-test(NumOfMeasurement) ->
-    io:format("TDMA test. Result = ~p mcs.~n", [tridiagonal_matrix_algorythm_test(0, NumOfMeasurement, 0)]).
-
-tridiagonal_matrix_algorythm_test(Iter, Iter, Val) ->
-    Val / Iter;
-tridiagonal_matrix_algorythm_test(TIter, Iter, Val) ->
-    Below = [rand:uniform(100) || _ <- lists:seq(1, 1000)],
-    Abowe = [rand:uniform(100) || _ <- lists:seq(1, 1000)],
-    Main = [rand:uniform(100) || _ <- lists:seq(1, 1001)],
-    Free = [rand:uniform(100) || _ <- lists:seq(1, 1001)],
-    {Time, CalcRes} = timer:tc(cm_functions, tridiagonal_matrix_algorythm, [Below, Main, Abowe, Free]),
-    io:format("Calc result = ~p.~n", [CalcRes]),
-    tridiagonal_matrix_algorythm_test(TIter + 1, Iter, Val + Time).
+write_file(Path, Result, Tau, H) ->
+    X = [?X_LEFT_BOUND, ?X_RIGHT_BOUND + H, H],
+    Y = [?TIME_LEFT_BOUND, ?TIME_RIGHT_BOUND + Tau, Tau],
+    Msg = [X, Y, lists:reverse(Result)],
+    file:write_file(Path, io_lib:write(Msg)).

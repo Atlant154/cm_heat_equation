@@ -20,5 +20,15 @@ init([]) ->
 					restart => permanent,
 					type => worker,
 					modules => [postman_srv]
-	}],
+				}
+			% ,
+			% 	#{
+			% 		id => tdma_sup,
+			% 		start => {cm_tdma_sup, start_link, []},
+			% 		shutdown => infinity,
+			% 		restart => permanent,
+			% 		type => supervisor,
+			% 		modules => [cm_tdma_sup]
+			% 	}
+			],
 	{ok, {Flags, Childrens}}.
