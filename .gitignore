@@ -12,3 +12,11 @@ rel/example_project
 \.erlang\.mk/
 
 *.d
+
+log/
+
+\.vscode/
+
+priv/result\.txt
+
+priv/test\.py
