@@ -22,7 +22,7 @@ print(len(Z))
 X, Y = np.meshgrid(X, Y)
 
 # Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
+surf = ax.plot_surface(np.array(X), np.array(Y), np.array(Z), cmap=cm.coolwarm,
                        linewidth=1, antialiased=False)
 
 # Customize the z axis.
