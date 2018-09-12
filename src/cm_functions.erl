@@ -35,7 +35,7 @@ get_init_free_part(H) ->
     get_init_free_part(?X_LEFT_BOUND, ?X_RIGHT_BOUND, H, []).
 
 -spec get_init_free_part(float(), float(), float(), list()) -> list().
-get_init_free_part(Iter, End, H, Result) when Iter > End + H/2 ->
+get_init_free_part(Iter, End, H, Result) when erlang:abs(erlang:abs(End) - erlang:abs(Iter)) < H/2 ->
     Result;
 get_init_free_part(Iter, End, H, Result) ->
     % io:format("Iter: ~p. End: ~p. Iter + H = ~p.~n", [Iter, End, Iter + H]),
@@ -44,8 +44,8 @@ get_init_free_part(Iter, End, H, Result) ->
 -spec get_tridiagonal_matrix(float(), float()) -> {list(), list(), list()}.
 get_tridiagonal_matrix(Tau, H) ->
     A_i = (?THERMAL_DIFFUSIVITY * Tau) / math:pow(H, 2),
-    AC = [A_i || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H) - 1)],
-    B = [(-1) * (A_i + 2) || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H))],
+    AC = [A_i || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H) - 2)],
+    B = [(-1) * (A_i + 2) || _ <- lists:seq(0, erlang:round((?X_RIGHT_BOUND - ?X_LEFT_BOUND) / H) - 1)],
     {AC, B, AC}.
 
 get_result_scatter(A, B, C, CalcPids, CalcRef, Tau, H) ->
@@ -54,7 +54,7 @@ get_result_scatter(A, B, C, CalcPids, CalcRef, Tau, H) ->
 get_result_scatter(TimeLeftBound,
                    TimeRightBound,
                    _A, _B, _C, _CalcPids, _CalcRef, _PreviousLayer,
-                   Result, _Tau, _H) when TimeLeftBound > TimeRightBound ->
+                   Result, Tau, _H) when erlang:abs(erlang:abs(TimeRightBound) - erlang:abs(TimeLeftBound)) < Tau / 2 ->
                        Result;
 get_result_scatter(Left, Right, A, B, C, Pids, Ref, PrevLayer, Result, Tau, H) ->
     Free = get_free_part(Left, H, PrevLayer),
@@ -63,7 +63,7 @@ get_result_scatter(Left, Right, A, B, C, Pids, Ref, PrevLayer, Result, Tau, H) -
     get_result_scatter(Left + Tau, Right, A, B, C, Pids, Ref, LocalResult, [LocalResult | Result], Tau, H).
 
 write_file(Path, Result, Tau, H) ->
-    X = [?X_LEFT_BOUND, ?X_RIGHT_BOUND + H, H],
-    Y = [?TIME_LEFT_BOUND, ?TIME_RIGHT_BOUND + Tau, Tau],
+    X = [?X_LEFT_BOUND, ?X_RIGHT_BOUND - H, H],
+    Y = [?TIME_LEFT_BOUND, ?TIME_RIGHT_BOUND - Tau, Tau],
     Msg = [X, Y, lists:reverse(Result)],
     file:write_file(Path, io_lib:write(Msg)).
